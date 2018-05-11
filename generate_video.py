@@ -158,7 +158,7 @@ def gen_video(exec_folder, args, folder):
         for mode in modelist:
             if args.combi:
                 filename = folder+"/Run-"+str(cut)+"-mode"+mode+"-"
-                os.system('cat '+filename+'pos.mpg '+filename+'neg.mpg > '+filename+'combi.mpg')
+                os.system('ffmpeg -i "'+filename+'pos.mpg" -i "'+filename+'neg.mpg" -c copy '+filename+'combi.mpg')
                 os.system('chmod 744 '+filename+'combi.mpg')
 
             # we also need to fix permissions for the all the videos 
