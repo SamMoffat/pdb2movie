@@ -66,6 +66,8 @@ def parsing_args(sys_args):
                         help='Python file with PyMOL commands to be run before generating video')
     parser.add_argument('pdbfile', metavar='PDB', type=str, nargs=1,
                         help='Initial PDB file')
+    parser.add_argument('--vmd', action='store_true',
+                        help='Flag to use VMD for the renderer instead of PyMOL. Video file format changes to .tcl from .py')
 
     # actually do the parsing for all system args other than 0 (which is the python script name) and return the structure generated
     args = parser.parse_args(sys_args[1:])

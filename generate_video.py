@@ -46,6 +46,8 @@ def parsing_video_args(sys_args):
                         help='Python file with PyMOL commands to be run before generating video')
     parser.add_argument('folder', metavar='PDB', type=str, nargs=1,
                         help='Folder where the runs can be found')
+    parser.add_argument('--vmd', action='store_true',
+                        help='Flag to use VMD for the renderer instead of PyMOL. Video file format changes to .tcl from .py')
 
     # actually do the parsing for all system args other than 0 (which is the python script name) and return the structure generated
     args = parser.parse_args(sys_args[1:])
@@ -91,47 +93,74 @@ def gen_video(exec_folder, args, folder):
     modelist = [format(i, '02d') for i in modelist]
     signals = ['pos', 'neg']
 
-
+    os.system('cat pdb2movie-1/generate_tga-start.tcl '+folder+'/*.tcl pdb2movie-1/generate_tga-end.tcl > '+folder+'/generate_tga.tcl')
     # initialise a list of jobs for multiprocessing 
     jobs = []
 
-
+    #os.mkdir(args.pdbfile[0][:-4])
     # loop over all combinations of cutoffs, modes, signs
-    for cut in cutlist:
-        for mode in modelist:
-            for sign in signals:
 
-                # generates a filename with the correct cutoff, mode and sign
-                filename = folder + "/Run-"+str(cut)+"-mode"+mode+"-"+sign+".mpg"
-                print (filename)
+    if args.vmd:
+        for cut in cutlist:
+            for mode in modelist:
+                for sign in signals:
+                    filename = folder + "/Run-"+str(cut)+"-mode"+mode+"-"+sign+".mpg"
+                    print (filename)
+                    currfolder = folder + "/Runs/"+str(cut)+"/Mode"+mode+"-"+sign+"/"
+                    try:
+                        os.mkdir(currfolder + "/outputs/")
+                    except:
+                        print("outputs exists in " + currfolder)
+                    command = 'vmd -e '+folder+'/generate_tga.tcl -dispdev openglpbuffer -args ' + currfolder
+                    os.system('echo "Exiting vmd."')
+                    p = multiprocessing.Process(target=call_pymol, args=(command,))
+                    jobs.append(p)
+                    p.start()
+    else:
+        for cut in cutlist:
+            for mode in modelist:
+                for sign in signals:
+
+                    # generates a filename with the correct cutoff, mode and sign
+                    filename = folder + "/Run-"+str(cut)+"-mode"+mode+"-"+sign+".mpg"
+                    print (filename)
 
 
-                # generates a separate script for this combination of cutoff, mode and sign
-                prepare_script(exec_folder, args, filename, cut, mode, sign, folder)
-                # Desired pymol commands here to produce and save figures
+                    # generates a separate script for this combination of cutoff, mode and sign
+                    prepare_script(exec_folder, args, filename, cut, mode, sign, folder)
+                    # Desired pymol commands here to produce and save figures
 
-                currfolder = folder + "/Runs/"+str(cut)+"/Mode"+mode+"-"+sign+"/"
+                    currfolder = folder + "/Runs/"+str(cut)+"/Mode"+mode+"-"+sign+"/"
 
-                # calls pymol with the generated script, with a new process for each combination of cutoffs, modes and signs
-                if args.threed:
-                    command = 'pymol -q '+folder+'/pymolvideo'+str(cut)+mode+sign+'.py -- '+currfolder
-                else:
-                    command = 'pymol -cq '+folder+'/pymolvideo'+str(cut)+mode+sign+'.py -- '+currfolder
-                p = multiprocessing.Process(target=call_pymol, args=(command,))
-                jobs.append(p)
-                p.start()
-
+                    # calls pymol with the generated script, with a new process for each combination of cutoffs, modes and signs
+                    if args.threed:
+                        command = 'pymol -q '+folder+'/pymolvideo'+str(cut)+mode+sign+'.py -- '+currfolder
+                    else:
+                        command = 'pymol -cq '+folder+'/pymolvideo'+str(cut)+mode+sign+'.py -- '+currfolder
+                    p = multiprocessing.Process(target=call_pymol, args=(command,))
+                    jobs.append(p)
+                    p.start()
 
     # this is here so that we wait for every process to finish before proceeding
     for job in jobs:
         job.join()
 
+    os.system('echo "rendering finished."')
 
+    if args.vmd:
 
-    # checks whether freemol is present in the system, if it is not we will have some extra work
-    if (os.system('grep \'FREEMOL\' $(which pymol)')):
+        for cut in cutlist:
+            for mode in modelist:
+                for sign in signals:
+                    filename = folder+"/Run-"+str(cut)+"-mode"+mode+"-"+sign+".mp4"
+                    tmpfolder = filename.rsplit("/", 1)[1][:-3]
+                    currfolder = folder+"/Runs/"+str(cut)+"/Mode"+mode+"-"+sign+"/"
+                    command = 'ffmpeg -pattern_type glob -i "'+currfolder+'/outputs/*.tga" -acodec libfaac -ab 96k -vcodec libx264 -threads 4 -r 30.000030 -y '+filename
+                    print(command)
+                    os.system("bash -c '{0}'".format(command))
 
-        # if freemol is not there, we will loop over all combinations once more, generate the correct filename and so on
+    elif (os.system('grep \'FREEMOL\' $(which pymol)')):
+        
         for cut in cutlist:
             for mode in modelist:
                 for sign in signals:
@@ -144,27 +173,30 @@ def gen_video(exec_folder, args, folder):
 
                     # finally, we will generate a video using ffmpeg instead of freemol, based on the ppm screenshots pymol has generated before
                     command = 'ffmpeg -pattern_type glob -i '+'\"'+folder+'/'+tmpfolder+'tmp/*.ppm'+'\" -c:v mpeg2video -pix_fmt yuv420p -me_method epzs -threads 4 -r 30.000030 -g 45 -bf 2 -trellis 2 -y -b 6000k '+filename
-                    
+
                     # command = ['ffmpeg', '-pattern_type', 'glob', '-i', '\"'+folder+'/'+tmpfolder+'tmp/*.ppm'+'\"', '-c:v', 'mpeg2video', '-pix_fmt', 'yuv420p', '-me_method', 'epzs', '-threads', '4', '-r', '30.000030', '-g', '45', '-bf', '2', '-trellis', '2', '-y', '-b', '6000k', filename]
                     # print(command)
                     os.system("bash -c '{0}'".format(command))
-                    # subprocess.call(command)
+                        # subprocess.call(command)              
 
-
-
+    # define the correct extension from the video files.
+    if args.vmd:
+        extension = ".mp4"
+    else:
+        extension = ".mpg"
 
     # now we loop over cutoffs and modes, and if we want combined movies we do that purely by concatenating two videos
     for cut in cutlist:
         for mode in modelist:
             if args.combi:
                 filename = folder+"/Run-"+str(cut)+"-mode"+mode+"-"
-                os.system('cat '+filename+'pos.mpg '+filename+'neg.mpg > '+filename+'combi.mpg')
-                os.system('chmod 744 '+filename+'combi.mpg')
+                os.system('cat '+filename+'pos'+extension+' '+filename+'neg.mpg > '+filename+'combi'+extension)
+                os.system('chmod 744 '+filename+'combi'+extension)
 
             # we also need to fix permissions for the all the videos 
             for sign in signals:
                 # os.system('rm '+folder+'/pymolvideo'+str(cut)+mode+sign+'.py')
-                filename = folder+"/Run-"+str(cut)+"-mode"+mode+"-"+sign+".mpg"
+                filename = folder+"/Run-"+str(cut)+"-mode"+mode+"-"+sign+extension
                 os.system('chmod 744 '+filename)
                 tmpfolder = filename.rsplit("/", 1)[1][:-3]
                 os.system('rm -r '+folder+'/'+tmpfolder+'tmp/')
