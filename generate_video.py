@@ -213,7 +213,7 @@ def gen_video(exec_folder, args, folder):
                     os.system("echo \"file '"+tmpname+"-pos.mp4'\" > "+folder+"/"+tmpname+"-demuxer-combi.txt;echo \"file '"+tmpname+"-neg.mp4'\" >> "+folder+"/"+tmpname+"-demuxer-combi.txt")
                     os.system('ffmpeg -f concat -i "'+folder+"/"+tmpname+'-demuxer-combi.txt" -c copy -y '+filename)
                 
-                    os.system("rm -r "+folder+"/Runs/"+str(cut)+"/Mode"+mode+"-"+sign+"/outputs")
+                    #os.system("rm -r "+folder+"/Runs/"+str(cut)+"/Mode"+mode+"-"+sign+"/outputs")
 
     else:
         for cut in cutlist:
