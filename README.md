@@ -5,7 +5,8 @@ Code for generating movies of the most relevant movement modes of proteins from 
 Requirements:     
 PyMOL     
 FreeMOL mpeg_encode component     
-Python libraries: argparse        
+Python libraries: argparse   
+VMD (Optional)
 
 Instructions:      
 Recompiling FIRST and diagstd is necessary!
@@ -34,3 +35,4 @@ Options:
 --threed    -     Generates anaglyph stereo videos     
 --combi     -          Creates videos combining positive and negative directions for each mode/cutoff energy      
 --multiple      -     Keeps multiple chains from the original PDB file (default: uses only chain A)   
+--vmd                  Changes video renderer to VMD (Requires VMD to be installed)
