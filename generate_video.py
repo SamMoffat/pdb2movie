@@ -2,17 +2,15 @@
 generate_video.py - takes a series of PDB files and generates a video
 
 '''
-
-
-
-
 import sys
 import os
 import multiprocessing
 import argparse
 import subprocess
-
-
+import glob
+from shutil import copyfile
+from shutil import rmtree
+from distutils.dir_util import copy_tree
 '''
 parsing_video_args: takes all command-line arguments and parse them into a structure with argument fields
 This function is only used when generate_video is called as a separate script, not as part of PDB2movie!
@@ -103,19 +101,24 @@ def gen_video(exec_folder, args, folder):
     if args.vmd:
         for cut in cutlist:
             for mode in modelist:
+
                 for sign in signals:
-                    filename = folder + "/Run-"+str(cut)+"-mode"+mode+"-"+sign+".mpg"
+                    filename = folder + "/Run-"+str(cut)+"-mode"+mode+"-"+sign+".mp4"
+                    tmpname = "Run-"+str(cut)+"-mode"+mode+"-"+sign
+
                     print (filename)
                     currfolder = folder + "/Runs/"+str(cut)+"/Mode"+mode+"-"+sign+"/"
                     try:
-                        os.mkdir(currfolder + "/outputs/")
+                        rmtree(currfolder + "/outputs/")
                     except:
-                        print("outputs exists in " + currfolder)
+                        print("outputs not created yet in " + currfolder)
+                    os.mkdir(currfolder + "/outputs/")
                     command = 'vmd -e '+folder+'/generate_tga.tcl -dispdev openglpbuffer -args ' + currfolder
                     os.system('echo "Exiting vmd."')
                     p = multiprocessing.Process(target=call_pymol, args=(command,))
                     jobs.append(p)
                     p.start()
+                    os.system("echo \"file '"+tmpname+"-fst.mp4'\" > "+folder+"/"+tmpname+"-demuxer.txt;echo \"file '"+tmpname+"-rev.mp4'\" >> "+folder+"/"+tmpname+"-demuxer.txt")
     else:
         for cut in cutlist:
             for mode in modelist:
@@ -150,14 +153,28 @@ def gen_video(exec_folder, args, folder):
     if args.vmd:
 
         for cut in cutlist:
-            for mode in modelist:
+            for mode in modelist:   
                 for sign in signals:
+                    tmpname = folder+"/Run-"+str(cut)+"-mode"+mode+"-"+sign
                     filename = folder+"/Run-"+str(cut)+"-mode"+mode+"-"+sign+".mp4"
-                    tmpfolder = filename.rsplit("/", 1)[1][:-3]
                     currfolder = folder+"/Runs/"+str(cut)+"/Mode"+mode+"-"+sign+"/"
-                    command = 'ffmpeg -pattern_type glob -i "'+currfolder+'/outputs/*.tga" -acodec libfaac -ab 96k -vcodec libx264 -threads 4 -r 30.000030 -y '+filename
-                    print(command)
-                    os.system("bash -c '{0}'".format(command))
+
+                    os.system("rm "+currfolder+"outputs/image.*0000000.tga")
+
+                    tgas=sorted(glob.glob(currfolder+"outputs/image.*.tga"))
+                    for x in range(1,15):
+                        copyfile(tgas[0], tgas[0]+"-"+str(x)+".tga")
+                        copyfile(tgas[-1], tgas[-1]+"-"+str(x)+".tga")
+
+                    command1 = 'ffmpeg -pattern_type glob -i "'+currfolder+'/outputs/*.tga" -acodec libfaac -ab 96k -vcodec libx264 -threads 4 -r 30.000030 -y '+tmpname+'-rev.mp4' 
+                    command2 = 'ffmpeg -i '+tmpname+'-rev.mp4 -vf reverse -y '+tmpname+'-fst.mp4'
+                    command3 = 'ffmpeg -f concat -i "'+tmpname+'-demuxer.txt" -c copy -y '+filename
+                    #command3 = 'cat '+tmpname+'-fst.mp4 '+tmpname+'-rev.mp4 > '+filename
+                    os.system("bash -c '{0}'".format(command1))
+                    os.system("bash -c '{0}'".format(command2))
+                    os.system("bash -c '{0}'".format(command3))
+
+                    #os.system("rm "+tmpname+"-rev.mp4; rm "+tmpname+"-fst.mp4")
 
     elif (os.system('grep \'FREEMOL\' $(which pymol)')):
         
@@ -186,20 +203,33 @@ def gen_video(exec_folder, args, folder):
         extension = ".mpg"
 
     # now we loop over cutoffs and modes, and if we want combined movies we do that purely by concatenating two videos
-    for cut in cutlist:
-        for mode in modelist:
-            if args.combi:
-                filename = folder+"/Run-"+str(cut)+"-mode"+mode+"-"
-                os.system('cat '+filename+'pos'+extension+' '+filename+'neg.mpg > '+filename+'combi'+extension)
-                os.system('chmod 744 '+filename+'combi'+extension)
+    if args.vmd:
+        for cut in cutlist:
+            for mode in modelist:
+                if args.combi:
+                    tmpname = "Run-"+str(cut)+"-mode"+mode
+                    filename = folder+"/Run-"+str(cut)+"-mode"+mode+"-combi.mp4"
+                    os.system('chmod 744 '+filename+'combi'+extension)
+                    os.system("echo \"file '"+tmpname+"-pos.mp4'\" > "+folder+"/"+tmpname+"-demuxer-combi.txt;echo \"file '"+tmpname+"-neg.mp4'\" >> "+folder+"/"+tmpname+"-demuxer-combi.txt")
+                    os.system('ffmpeg -f concat -i "'+folder+"/"+tmpname+'-demuxer-combi.txt" -c copy -y '+filename)
+                
+                    #os.system("rm -r "+folder+"/Runs/"+str(cut)+"/Mode"+mode+"-"+sign+"/outputs")
 
-            # we also need to fix permissions for the all the videos 
-            for sign in signals:
-                # os.system('rm '+folder+'/pymolvideo'+str(cut)+mode+sign+'.py')
-                filename = folder+"/Run-"+str(cut)+"-mode"+mode+"-"+sign+extension
-                os.system('chmod 744 '+filename)
-                tmpfolder = filename.rsplit("/", 1)[1][:-3]
-                os.system('rm -r '+folder+'/'+tmpfolder+'tmp/')
+    else:
+        for cut in cutlist:
+            for mode in modelist:
+                if args.combi:
+                    filename = folder+"/Run-"+str(cut)+"-mode"+mode+"-"
+                    os.system('cat '+filename+'pos'+extension+' '+filename+'neg.mpg > '+filename+'combi'+extension)
+                    os.system('chmod 744 '+filename+'combi'+extension)
+
+                # we also need to fix permissions for the all the videos 
+                for sign in signals:
+                    # os.system('rm '+folder+'/pymolvideo'+str(cut)+mode+sign+'.py')
+                    filename = folder+"/Run-"+str(cut)+"-mode"+mode+"-"+sign+extension
+                    os.system('chmod 744 '+filename)
+                    tmpfolder = filename.rsplit("/", 1)[1][:-3]
+                    os.system('rm -r '+folder+'/'+tmpfolder+'tmp/')
     return
 
 # cmd.set(full_screen='on')
