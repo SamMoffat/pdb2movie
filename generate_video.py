@@ -223,6 +223,7 @@ def gen_video(exec_folder, args, folder):
                     os.system('cat '+filename+'pos'+extension+' '+filename+'neg.mpg > '+filename+'combi'+extension)
                     os.system('chmod 744 '+filename+'combi'+extension)
 
+<<<<<<< HEAD
                 # we also need to fix permissions for the all the videos 
                 for sign in signals:
                     # os.system('rm '+folder+'/pymolvideo'+str(cut)+mode+sign+'.py')
@@ -230,6 +231,23 @@ def gen_video(exec_folder, args, folder):
                     os.system('chmod 744 '+filename)
                     tmpfolder = filename.rsplit("/", 1)[1][:-3]
                     os.system('rm -r '+folder+'/'+tmpfolder+'tmp/')
+=======
+    # now we loop over cutoffs and modes, and if we want combined movies we do that purely by concatenating two videos
+    for cut in cutlist:
+        for mode in modelist:
+            if args.combi:
+                filename = folder+"/Run-"+str(cut)+"-mode"+mode+"-"
+                os.system('ffmpeg -i "'+filename+'pos.mpg" -i "'+filename+'neg.mpg" -c copy '+filename+'combi.mpg')
+                os.system('chmod 744 '+filename+'combi.mpg')
+
+            # we also need to fix permissions for the all the videos 
+            for sign in signals:
+                # os.system('rm '+folder+'/pymolvideo'+str(cut)+mode+sign+'.py')
+                filename = folder+"/Run-"+str(cut)+"-mode"+mode+"-"+sign+".mpg"
+                os.system('chmod 744 '+filename)
+                tmpfolder = filename.rsplit("/", 1)[1][:-3]
+                os.system('rm -r '+folder+'/'+tmpfolder+'tmp/')
+>>>>>>> 3536b9b5b8d7df382a9df69084456b95671e35dd
     return
 
 # cmd.set(full_screen='on')
